@@ -44,8 +44,10 @@ const DocumentManagementApp = () => {
 
   // Load token from storage on component mount
   useEffect(() => {
-    const savedToken = localStorage.getItem('doc_app_token');
-    if (savedToken) {
+    const savedToken = sessionStorage.getItem('doc_app_token');
+    console.log('Loading saved token:', savedToken ? 'Token found' : 'No token found');
+
+    if (savedToken && savedToken !== 'undefined' && savedToken !== 'null') {
       setToken(savedToken);
       setIsAuthenticated(true);
       // Verify token is still valid and fetch documents
@@ -55,6 +57,14 @@ const DocumentManagementApp = () => {
 
   // Verify token and fetch documents
   const verifyTokenAndFetchDocuments = async (tokenToVerify) => {
+    console.log('Verifying token:', tokenToVerify ? 'Token present' : 'No token');
+
+    if (!tokenToVerify || tokenToVerify === 'undefined' || tokenToVerify === 'null') {
+      console.log('Invalid token, logging out');
+      handleLogout();
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/documents/`, {
         headers: {
@@ -63,16 +73,20 @@ const DocumentManagementApp = () => {
         },
       });
 
+      console.log('Token verification response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
         setDocuments(data);
         setError('');
       } else if (response.status === 401) {
+        console.log('Token verification failed - 401');
         // Token is invalid, clear it
         handleLogout();
       }
     } catch (err) {
       console.error('Token verification failed:', err);
+      // Don't logout on network errors, just log the error
     }
   };
 
@@ -97,6 +111,8 @@ const DocumentManagementApp = () => {
         },
       });
 
+      console.log('Auth response status:', response.status);
+
       if (!response.ok) {
         throw new Error('Failed to authenticate');
       }
@@ -104,9 +120,15 @@ const DocumentManagementApp = () => {
       const data = await response.json();
       const newToken = data.access_token;
 
-      // Save token to state and localStorage
+      console.log('New token received:', newToken ? 'Token received' : 'No token received');
+
+      if (!newToken) {
+        throw new Error('No token received from server');
+      }
+
+      // Save token to state and storage
       setToken(newToken);
-      localStorage.setItem('doc_app_token', newToken);
+      sessionStorage.setItem('doc_app_token', newToken);
       setIsAuthenticated(true);
       setError('');
 
@@ -124,14 +146,17 @@ const DocumentManagementApp = () => {
   const fetchDocuments = async (tokenToUse = null) => {
     const currentToken = tokenToUse || token;
 
-    if (!currentToken) {
+    console.log('fetchDocuments called with token:', currentToken ? 'Token present' : 'No token');
+
+    if (!currentToken || currentToken === 'undefined' || currentToken === 'null') {
       setError('No authentication token available');
+      console.log('No valid token available for fetchDocuments');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('Fetching documents with token:', currentToken ? 'Token present' : 'No token');
+      console.log('Making API call with Authorization header:', `Bearer ${currentToken.substring(0, 20)}...`);
 
       const response = await fetch(`${API_BASE_URL}/documents/`, {
         headers: {
@@ -139,6 +164,8 @@ const DocumentManagementApp = () => {
           'Content-Type': 'application/json',
         },
       });
+
+      console.log('fetchDocuments response status:', response.status);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -150,6 +177,7 @@ const DocumentManagementApp = () => {
       }
 
       const data = await response.json();
+      console.log('Documents fetched successfully:', data.length, 'documents');
       setDocuments(data);
       setError('');
     } catch (err) {
@@ -167,7 +195,7 @@ const DocumentManagementApp = () => {
       return;
     }
 
-    if (!token) {
+    if (!token || token === 'undefined' || token === 'null') {
       setError('No authentication token available');
       return;
     }
@@ -175,7 +203,7 @@ const DocumentManagementApp = () => {
     setLoading(true);
 
     try {
-      console.log('Creating document with token:', token ? 'Token present' : 'No token');
+      console.log('Creating document with Authorization header:', `Bearer ${token.substring(0, 20)}...`);
 
       const response = await fetch(`${API_BASE_URL}/documents/`, {
         method: 'POST',
@@ -185,6 +213,8 @@ const DocumentManagementApp = () => {
         },
         body: JSON.stringify(formData),
       });
+
+      console.log('createDocument response status:', response.status);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -221,7 +251,7 @@ const DocumentManagementApp = () => {
       return;
     }
 
-    if (!token) {
+    if (!token || token === 'undefined' || token === 'null') {
       setError('No authentication token available');
       return;
     }
@@ -229,7 +259,7 @@ const DocumentManagementApp = () => {
     setLoading(true);
 
     try {
-      console.log('Updating document with token:', token ? 'Token present' : 'No token');
+      console.log('Updating document with Authorization header:', `Bearer ${token.substring(0, 20)}...`);
 
       const response = await fetch(`${API_BASE_URL}/documents/${selectedDocument.sno}`, {
         method: 'PUT',
@@ -239,6 +269,8 @@ const DocumentManagementApp = () => {
         },
         body: JSON.stringify(formData),
       });
+
+      console.log('updateDocument response status:', response.status);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -267,14 +299,14 @@ const DocumentManagementApp = () => {
       return;
     }
 
-    if (!token) {
+    if (!token || token === 'undefined' || token === 'null') {
       setError('No authentication token available');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('Deleting document with token:', token ? 'Token present' : 'No token');
+      console.log('Deleting document with Authorization header:', `Bearer ${token.substring(0, 20)}...`);
 
       const response = await fetch(`${API_BASE_URL}/documents/${sno}`, {
         method: 'DELETE',
@@ -283,6 +315,8 @@ const DocumentManagementApp = () => {
           'Content-Type': 'application/json',
         },
       });
+
+      console.log('deleteDocument response status:', response.status);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -348,12 +382,13 @@ const DocumentManagementApp = () => {
   };
 
   const handleLogout = () => {
+    console.log('Logging out user');
     setIsAuthenticated(false);
     setToken('');
     setPassword('');
     setDocuments([]);
     setActiveView('list');
-    localStorage.removeItem('doc_app_token');
+    sessionStorage.removeItem('doc_app_token');
   };
 
   // Clear messages after 5 seconds
@@ -366,6 +401,11 @@ const DocumentManagementApp = () => {
       return () => clearTimeout(timer);
     }
   }, [error, success]);
+
+  // Debug token state
+  useEffect(() => {
+    console.log('Token state changed:', token ? `Token: ${token.substring(0, 20)}...` : 'No token');
+  }, [token]);
 
   // Login Screen
   if (!isAuthenticated) {
