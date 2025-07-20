@@ -40,7 +40,41 @@ const DocumentManagementApp = () => {
 
   // Environment variables (these would be set in your deployment environment)
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://document-management-api-u9ab.onrender.com';
-  const APP_PASSWORD = process.env.REACT_APP_PASSWORD || 'admin123'; // Set this in your environment
+  const APP_PASSWORD = process.env.REACT_APP_PASSWORD || 'admin123';
+
+  // Load token from storage on component mount
+  useEffect(() => {
+    const savedToken = localStorage.getItem('doc_app_token');
+    if (savedToken) {
+      setToken(savedToken);
+      setIsAuthenticated(true);
+      // Verify token is still valid and fetch documents
+      verifyTokenAndFetchDocuments(savedToken);
+    }
+  }, []);
+
+  // Verify token and fetch documents
+  const verifyTokenAndFetchDocuments = async (tokenToVerify) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/documents/`, {
+        headers: {
+          'Authorization': `Bearer ${tokenToVerify}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data);
+        setError('');
+      } else if (response.status === 401) {
+        // Token is invalid, clear it
+        handleLogout();
+      }
+    } catch (err) {
+      console.error('Token verification failed:', err);
+    }
+  };
 
   // Authentication
   const handlePasswordSubmit = async () => {
@@ -68,30 +102,51 @@ const DocumentManagementApp = () => {
       }
 
       const data = await response.json();
-      setToken(data.access_token);
+      const newToken = data.access_token;
+
+      // Save token to state and localStorage
+      setToken(newToken);
+      localStorage.setItem('doc_app_token', newToken);
       setIsAuthenticated(true);
       setError('');
-      fetchDocuments();
+
+      // Fetch documents with the new token
+      await fetchDocuments(newToken);
     } catch (err) {
       setError('Authentication failed. Please check your connection.');
+      console.error('Authentication error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // API calls
-  const fetchDocuments = async () => {
+  // API calls with better token handling
+  const fetchDocuments = async (tokenToUse = null) => {
+    const currentToken = tokenToUse || token;
+
+    if (!currentToken) {
+      setError('No authentication token available');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('Fetching documents with token:', currentToken ? 'Token present' : 'No token');
+
       const response = await fetch(`${API_BASE_URL}/documents/`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${currentToken}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch documents');
+        if (response.status === 401) {
+          setError('Authentication expired. Please login again.');
+          handleLogout();
+          return;
+        }
+        throw new Error(`Failed to fetch documents: ${response.status}`);
       }
 
       const data = await response.json();
@@ -99,6 +154,7 @@ const DocumentManagementApp = () => {
       setError('');
     } catch (err) {
       setError('Failed to load documents');
+      console.error('Fetch documents error:', err);
     } finally {
       setLoading(false);
     }
@@ -111,9 +167,16 @@ const DocumentManagementApp = () => {
       return;
     }
 
+    if (!token) {
+      setError('No authentication token available');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      console.log('Creating document with token:', token ? 'Token present' : 'No token');
+
       const response = await fetch(`${API_BASE_URL}/documents/`, {
         method: 'POST',
         headers: {
@@ -124,8 +187,13 @@ const DocumentManagementApp = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setError('Authentication expired. Please login again.');
+          handleLogout();
+          return;
+        }
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to create document');
+        throw new Error(errorData.detail || `Failed to create document: ${response.status}`);
       }
 
       setSuccess('Document created successfully!');
@@ -137,9 +205,10 @@ const DocumentManagementApp = () => {
         action_due_date: ''
       });
       setActiveView('list');
-      fetchDocuments();
+      await fetchDocuments();
     } catch (err) {
       setError(err.message);
+      console.error('Create document error:', err);
     } finally {
       setLoading(false);
     }
@@ -152,9 +221,16 @@ const DocumentManagementApp = () => {
       return;
     }
 
+    if (!token) {
+      setError('No authentication token available');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      console.log('Updating document with token:', token ? 'Token present' : 'No token');
+
       const response = await fetch(`${API_BASE_URL}/documents/${selectedDocument.sno}`, {
         method: 'PUT',
         headers: {
@@ -165,16 +241,22 @@ const DocumentManagementApp = () => {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setError('Authentication expired. Please login again.');
+          handleLogout();
+          return;
+        }
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to update document');
+        throw new Error(errorData.detail || `Failed to update document: ${response.status}`);
       }
 
       setSuccess('Document updated successfully!');
       setActiveView('list');
       setSelectedDocument(null);
-      fetchDocuments();
+      await fetchDocuments();
     } catch (err) {
       setError(err.message);
+      console.error('Update document error:', err);
     } finally {
       setLoading(false);
     }
@@ -185,8 +267,15 @@ const DocumentManagementApp = () => {
       return;
     }
 
+    if (!token) {
+      setError('No authentication token available');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('Deleting document with token:', token ? 'Token present' : 'No token');
+
       const response = await fetch(`${API_BASE_URL}/documents/${sno}`, {
         method: 'DELETE',
         headers: {
@@ -196,13 +285,19 @@ const DocumentManagementApp = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete document');
+        if (response.status === 401) {
+          setError('Authentication expired. Please login again.');
+          handleLogout();
+          return;
+        }
+        throw new Error(`Failed to delete document: ${response.status}`);
       }
 
       setSuccess('Document deleted successfully!');
-      fetchDocuments();
+      await fetchDocuments();
     } catch (err) {
       setError('Failed to delete document');
+      console.error('Delete document error:', err);
     } finally {
       setLoading(false);
     }
@@ -258,6 +353,7 @@ const DocumentManagementApp = () => {
     setPassword('');
     setDocuments([]);
     setActiveView('list');
+    localStorage.removeItem('doc_app_token');
   };
 
   // Clear messages after 5 seconds
@@ -329,6 +425,11 @@ const DocumentManagementApp = () => {
             <div className="flex items-center">
               <FileText className="w-6 h-6 text-blue-600 mr-2" />
               <h1 className="text-xl font-bold text-gray-800">Documents</h1>
+              {token && (
+                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                  Authenticated
+                </span>
+              )}
             </div>
             <button
               onClick={handleLogout}
@@ -385,7 +486,7 @@ const DocumentManagementApp = () => {
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <button
-                  onClick={fetchDocuments}
+                  onClick={() => fetchDocuments()}
                   disabled={loading}
                   className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
                 >
