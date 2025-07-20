@@ -152,7 +152,6 @@ const DocumentManagementApp = () => {
       return;
     }
 
-    setLoading(true);.preventDefault();
     setLoading(true);
 
     try {
