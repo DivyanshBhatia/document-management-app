@@ -105,7 +105,7 @@ const DocumentManagementApp = () => {
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/auth/token?username=testuser&role=admin`, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
