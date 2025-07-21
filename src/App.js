@@ -293,6 +293,45 @@ const DocumentManagementApp = () => {
       setLoading(false);
     }
   };
+  const downloadReport = async () => {
+    if (!token || token === 'undefined' || token === 'null') {
+      setError('No authentication token available');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/documents/download-report/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download report: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      // Use content-disposition header if provided, else default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filename = contentDisposition
+        ? contentDisposition.split("filename=")[1]
+        : "document_report.pdf";
+
+      link.setAttribute('download', filename.replace(/['"]/g, '')); // Clean quotes
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError(err.message);
+      console.error('Download report error:', err);
+    }
+  };
 
   const deleteDocument = async (sno) => {
     if (!window.confirm('Are you sure you want to delete this document?')) {
@@ -536,13 +575,22 @@ const DocumentManagementApp = () => {
             </div>
 
             {/* Add Document Button */}
-            <button
-              onClick={() => setActiveView('create')}
-              className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Add Document
-            </button>
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setActiveView('create')}
+                className="w-full mb-4 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Add Document
+              </button>
+              <button
+                onClick={downloadReport}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center"
+              >
+                <FileText className="w-5 h-5 mr-2" />
+                Download Report
+              </button>
+            </div>
 
             {/* Documents List */}
             {loading && documents.length === 0 ? (
